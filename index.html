@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chennai Metro</title>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            touch-action: manipulation;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .blinking-dot {
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+        .slide-in {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
+        }
+        #map {
+            height: calc(100vh - 140px);
+            width: 100%;
+            z-index: 1;
+        }
+        .station-popup .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            padding: 8px;
+        }
+        .metro-line {
+            stroke: #0066CC;
+            stroke-width: 4;
+            stroke-linecap: round;
+        }
+        .search-results {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="app" class="h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-white shadow-sm p-4 z-10">
+            <div class="flex justify-between items-center">
+                <button id="menuBtn" class="text-2xl text-gray-700 hover:bg-gray-100 p-2 rounded-full transition">
+                    <i class="bi bi-list"></i>
+                </button>
+                <h1 class="text-xl font-bold text-[#0066CC]">Chennai Metro</h1>
+                <button id="notificationBtn" class="text-xl text-gray-700 hover:bg-gray-100 p-2 rounded-full transition">
+                    <i class="bi bi-bell"></i>
+                </button>
+            </div>
+            <div class="mt-3 relative">
+                <div class="flex gap-2">
+                    <div class="relative flex-1">
+                        <input type="text" id="fromStation" placeholder="From Station..." 
+                            class="w-full px-4 py-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm">
+                        <div id="fromResults" class="search-results hidden absolute w-full bg-white mt-1 rounded-lg shadow-lg z-20"></div>
+                    </div>
+                    <div class="relative flex-1">
+                        <input type="text" id="toStation" placeholder="To Station..." 
+                            class="w-full px-4 py-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm">
+                        <div id="toResults" class="search-results hidden absolute w-full bg-white mt-1 rounded-lg shadow-lg z-20"></div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Map Container -->
+        <main class="flex-1 relative">
+            <div id="map"></div>
+            
+            <!-- Floating Action Button -->
+            <button id="findRouteBtn" class="fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-[#0066CC] text-white px-6 py-3 rounded-full shadow-lg z-10 font-medium">
+                Find Route
+            </button>
+            
+            <!-- Zoom Controls -->
+            <div class="absolute bottom-24 right-4 flex flex-col gap-2 z-10">
+                <button id="zoomIn" class="bg-white p-3 rounded-full shadow-lg text-gray-700 hover:bg-gray-50 active:bg-gray-100">
+                    <i class="bi bi-plus-lg"></i>
+                </button>
+                <button id="zoomOut" class="bg-white p-3 rounded-full shadow-lg text-gray-700 hover:bg-gray-50 active:bg-gray-100">
+                    <i class="bi bi-dash-lg"></i>
+                </button>
+                <button id="locate" class="bg-white p-3 rounded-full shadow-lg text-gray-700 hover:bg-gray-50 active:bg-gray-100">
+                    <i class="bi bi-compass"></i>
+                </button>
+            </div>
+        </main>
+
+        <!-- Side Menu -->
+        <div id="sideMenu" class="fixed top-0 left-0 h-full w-72 bg-white shadow-lg transform -translate-x-full transition-transform duration-300 z-20">
+            <div class="p-5">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold text-[#0066CC]">Menu</h2>
+                    <button id="closeMenu" class="text-gray-500 hover:bg-gray-100 p-2 rounded-full">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div class="p-3 hover:bg-gray-50 rounded-lg cursor-pointer flex items-center">
+                        <i class="bi bi-bookmark-heart text-[#0066CC]"></i>
+                        <span class="ml-3">Saved Routes</span>
+                    </div>
+                    <div class="p-3 hover:bg-gray-50 rounded-lg cursor-pointer flex items-center">
+                        <i class="bi bi-exclamation-triangle text-[#0066CC]"></i>
+                        <span class="ml-3">Service Alerts</span>
+                    </div>
+                    <div class="p-3 hover:bg-gray-50 rounded-lg cursor-pointer flex items-center">
+                        <i class="bi bi-credit-card text-[#0066CC]"></i>
+                        <span class="ml-3">Metro Card</span>
+                    </div>
+                    <div class="p-3 hover:bg-gray-50 rounded-lg cursor-pointer flex items-center">
+                        <i class="bi bi-translate text-[#0066CC]"></i>
+                        <span class="ml-3">தமிழ் / English</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Bar -->
+        <nav class="bg-white shadow-lg fixed bottom-0 w-full z-10">
+            <div class="flex justify-around py-3">
+                <button class="flex flex-col items-center text-[#0066CC]">
+                    <i class="bi bi-map text-xl"></i>
+                    <span class="text-xs mt-1">Map</span>
+                </button>
+                <button class="flex flex-col items-center text-gray-600">
+                    <i class="bi bi-clock-history text-xl"></i>
+                    <span class="text-xs mt-1">Routes</span>
+                </button>
+                <button class="flex flex-col items-center text-gray-600">
+                    <i class="bi bi-gear text-xl"></i>
+                    <span class="text-xs mt-1">Settings</span>
+                </button>
+            </div>
+        </nav>
+    </div>
+
+    <script>
+        // Initialize map centered on Chennai
+        const map = L.map('map', {
+            zoomControl: false // Disable default zoom controls
+        }).setView([13.0827, 80.2707], 12);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        // Chennai Metro Stations (Sample data)
+        const stations = [
+            { name: "Chennai Central", coords: [13.0837, 80.2747], type: "Junction", amenities: ["parking", "wifi", "food"] },
+            { name: "Chennai Airport", coords: [12.9941, 80.1709], type: "Terminal", amenities: ["parking", "wifi"] },
+            { name: "Guindy", coords: [13.0066, 80.2206], type: "Station", amenities: ["parking"] },
+            { name: "Anna Nagar East", coords: [13.0878, 80.2188], type: "Station", amenities: ["wifi"] }
+        ];
+
+        // Add custom station markers with enhanced popups
+        stations.forEach(station => {
+            const marker = L.circleMarker(station.coords, {
+                radius: 8,
+                fillColor: '#0066CC',
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).addTo(map);
+
+            const amenitiesIcons = {
+                parking: '<i class="bi bi-p-square"></i>',
+                wifi: '<i class="bi bi-wifi"></i>',
+                food: '<i class="bi bi-cup-hot"></i>'
+            };
+
+            marker.bindPopup(`
+                <div class="p-3">
+                    <h3 class="font-bold text-[#0066CC] text-lg">${station.name}</h3>
+                    <p class="text-sm text-gray-600 mb-2">${station.type}</p>
+                    <div class="flex gap-2 mb-3">
+                        ${station.amenities.map(a => `<span class="text-[#0066CC]">${amenitiesIcons[a]}</span>`).join('')}
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="text-sm bg-[#0066CC] text-white px-4 py-2 rounded-full">Route</button>
+                        <button class="text-sm border border-[#0066CC] text-[#0066CC] px-4 py-2 rounded-full">Details</button>
+                    </div>
+                </div>
+            `);
+        });
+
+        // Menu toggle functionality
+        const menuBtn = document.getElementById('menuBtn');
+        const closeMenu = document.getElementById('closeMenu');
+        const sideMenu = document.getElementById('sideMenu');
+        
+        menuBtn.addEventListener('click', () => {
+            sideMenu.style.transform = 'translateX(0)';
+        });
+        
+        closeMenu.addEventListener('click', () => {
+            sideMenu.style.transform = 'translateX(-100%)';
+        });
+
+        // Custom zoom controls
+        document.getElementById('zoomIn').addEventListener('click', () => map.zoomIn());
+        document.getElementById('zoomOut').addEventListener('click', () => map.zoomOut());
+        document.getElementById('locate').addEventListener('click', () => {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    map.setView([position.coords.latitude, position.coords.longitude], 15);
+                });
+            }
+        });
+
+        // Simulate moving trains with enhanced animation
+        function simulateTrains() {
+            stations.forEach((station, index) => {
+                if (index < stations.length - 1) {
+                    const nextStation = stations[index + 1];
+                    const midPoint = [
+                        (station.coords[0] + nextStation.coords[0]) / 2,
+                        (station.coords[1] + nextStation.coords[1]) / 2
+                    ];
+                    
+                    const train = L.circleMarker(midPoint, {
+                        radius: 6,
+                        fillColor: '#FF4444',
+                        color: '#fff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    }).addTo(map);
+                    
+                    train.getElement().classList.add('blinking-dot');
+
+                    // Add train information popup
+                    train.bindPopup(`
+                        <div class="p-2">
+                            <h3 class="font-bold text-red-500">Train ${index + 1}</h3>
+                            <p class="text-sm">Next Stop: ${nextStation.name}</p>
+                            <p class="text-sm">ETA: ${Math.floor(Math.random() * 10) + 1} mins</p>
+                        </div>
+                    `);
+                }
+            });
+        }
+
+        simulateTrains();
+        setInterval(simulateTrains, 5000);
+
+        // Route finder button functionality
+        document.getElementById('findRouteBtn').addEventListener('click', () => {
+            const from = document.getElementById('fromStation').value;
+            const to = document.getElementById('toStation').value;
+            if (from && to) {
+                alert(`Finding route from ${from} to ${to}`);
+                // Add your route finding logic here
+            } else {
+                alert('Please select both stations');
+            }
+        });
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
